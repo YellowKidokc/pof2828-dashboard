@@ -2945,16 +2945,33 @@ function App() {
     );
   }
 
+  // Bottom nav items — the most-used views for quick thumb access
+  const bottomNavItems = VIEWS.filter(v =>
+    ['dashboard', 'clipboard', 'notes', 'ai', 'prompts'].includes(v.id)
+  );
+
   return (
-    <div className="h-screen flex bg-background text-foreground overflow-hidden">
-      {/* Mobile hamburger button */}
-      <button
-        onClick={() => setSidebarOpen(true)}
-        className="md:hidden fixed top-3 left-3 z-50 p-2 bg-card border border-border rounded-lg shadow-lg"
-        aria-label="Open menu"
-      >
-        <Menu className="w-5 h-5" />
-      </button>
+    <div className="h-screen flex flex-col md:flex-row bg-background text-foreground overflow-hidden">
+      {/* Mobile top bar with hamburger */}
+      <div className="md:hidden flex items-center h-12 px-3 bg-card border-b border-border shrink-0">
+        <button
+          onClick={() => setSidebarOpen(true)}
+          className="p-2 -ml-1 rounded-lg hover:bg-muted"
+          aria-label="Open menu"
+        >
+          <Menu className="w-5 h-5" />
+        </button>
+        <span className="ml-2 font-semibold text-sm">
+          {VIEWS.find(v => v.id === store.currentView)?.label || 'POF 2828'}
+        </span>
+        <button
+          onClick={() => setSearchOpen(true)}
+          className="ml-auto p-2 rounded-lg hover:bg-muted"
+          aria-label="Search"
+        >
+          <Search className="w-4 h-4 text-muted-foreground" />
+        </button>
+      </div>
 
       {/* Mobile overlay */}
       {sidebarOpen && (
@@ -2978,10 +2995,38 @@ function App() {
         />
       </div>
 
-      {/* Main Content */}
-      <main className="flex-1 overflow-hidden">
+      {/* Main Content — account for bottom nav on mobile */}
+      <main className="flex-1 overflow-hidden pb-16 md:pb-0">
         {renderView()}
       </main>
+
+      {/* Mobile Bottom Nav Bar */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-card border-t border-border flex items-stretch justify-around h-16">
+        {bottomNavItems.map((view) => {
+          const Icon = view.icon;
+          const isActive = store.currentView === view.id;
+          return (
+            <button
+              key={view.id}
+              onClick={() => store.navigateTo(view.id)}
+              className={cn(
+                'flex-1 flex flex-col items-center justify-center gap-1 transition-colors',
+                isActive ? 'text-gold' : 'text-muted-foreground'
+              )}
+            >
+              <Icon className="w-6 h-6" />
+              <span className="text-[10px] font-medium">{view.label}</span>
+            </button>
+          );
+        })}
+        <button
+          onClick={() => setSidebarOpen(true)}
+          className="flex-1 flex flex-col items-center justify-center gap-1 text-muted-foreground"
+        >
+          <Menu className="w-6 h-6" />
+          <span className="text-[10px] font-medium">More</span>
+        </button>
+      </nav>
 
       {/* Unified Search Modal */}
       <UnifiedSearch
