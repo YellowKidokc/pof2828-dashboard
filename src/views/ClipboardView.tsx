@@ -3,7 +3,6 @@ import { useClipsAPI } from '@/hooks/useAPI';
 
 export function ClipboardView() {
   const { clips, fetchClips, createClip, updateClip, deleteClip } = useClipsAPI();
-  const [newClip, setNewClip] = useState('');
   const [search, setSearch] = useState('');
   const [tab, setTab] = useState<'hotkeys' | 'history' | 'ai' | 'saved'>('hotkeys');
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -33,13 +32,6 @@ export function ClipboardView() {
   const showToast = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(null), 600);
-  };
-
-  const handleAdd = () => {
-    if (newClip.trim()) {
-      createClip({ content: newClip.trim() });
-      setNewClip('');
-    }
   };
 
   const copyClip = async (clip: typeof clips[0]) => {

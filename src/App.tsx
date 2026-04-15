@@ -30,7 +30,6 @@ import {
   BrainCircuit,
   Wand2,
   Clock3,
-  Menu,
   Volume2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -38,7 +37,7 @@ import { useDashboardStore } from '@/hooks/useDashboardStore';
 import { useUnifiedSearch } from '@/hooks/useUnifiedSearch';
 import { axioms, getAxiomById } from '@/data/axioms';
 import type { ViewType, SearchResult, Task, Prompt, Bookmark, CustomPage, ChatTurn, AiProvider, AiRole } from '@/types';
-import { TTSView as TTSViewPanel } from '@/components/TTSView';
+// TTSView re-exported from views via components/TTSView.tsx
 import { Shell } from '@/components/Shell';
 import { ClipboardView as ClipboardViewExtracted } from '@/views/ClipboardView';
 import { TTSView as TTSViewExtracted } from '@/views/TTSView';
@@ -143,7 +142,7 @@ function SearchResultItem({
 }
 
 // ─── UNIFIED SEARCH MODAL ───
-function UnifiedSearch({ 
+export function UnifiedSearch({
   isOpen, 
   onClose, 
   onNavigate,
@@ -287,7 +286,7 @@ function UnifiedSearch({
 }
 
 // ─── SIDEBAR ───
-function Sidebar({ 
+export function Sidebar({
   currentView, 
   onNavigate, 
   onOpenSearch,
@@ -586,7 +585,6 @@ export function DashboardView({ store }: { store: ReturnType<typeof useDashboard
 // ─── CLIPBOARD VIEW ───
 // Styled to match ClipSync clipboard.html
 export function ClipboardView({ store }: { store: ReturnType<typeof useDashboardStore> }) {
-  const [newClip, setNewClip] = useState('');
   const [search, setSearch] = useState('');
   const [tab, setTab] = useState<'hotkeys' | 'history' | 'ai' | 'saved'>('hotkeys');
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -610,13 +608,6 @@ export function ClipboardView({ store }: { store: ReturnType<typeof useDashboard
   const showToast = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(null), 600);
-  };
-
-  const handleAdd = () => {
-    if (newClip.trim()) {
-      store.addClip(newClip.trim());
-      setNewClip('');
-    }
   };
 
   const copyClip = async (clip: typeof store.clips[0]) => {
@@ -2070,7 +2061,7 @@ export function NotesView({ store }: { store: ReturnType<typeof useDashboardStor
 }
 
 // ─── TAGS VIEW ───
-function TagsView({ store }: { store: ReturnType<typeof useDashboardStore> }) {
+export function TagsView({ store }: { store: ReturnType<typeof useDashboardStore> }) {
   const [newTagName, setNewTagName] = useState('');
   const colors = ['#F2C94C', '#4F8EF7', '#4ECB71', '#9B7FE8', '#F6821F', '#E05C6E', '#22d3ee'];
 
@@ -2133,7 +2124,7 @@ function TagsView({ store }: { store: ReturnType<typeof useDashboardStore> }) {
 }
 
 // ─── FILES VIEW ───
-function FilesView({ store }: { store: ReturnType<typeof useDashboardStore> }) {
+export function FilesView({ store }: { store: ReturnType<typeof useDashboardStore> }) {
   const folders = [
     { id: 'documents', label: 'Documents', icon: '📄', color: '#4F8EF7' },
     { id: 'videos', label: 'Videos', icon: '🎬', color: '#E05C6E' },
@@ -2630,7 +2621,7 @@ ${selectedPrompt.template}` : selectedPrompt.template);
 }
 
 // ─── AXIOMS VIEW ───
-function AxiomsView() {
+export function AxiomsView() {
   const [selectedAxiomId, setSelectedAxiomId] = useState<string | null>(null);
   const selectedAxiom = selectedAxiomId ? getAxiomById(selectedAxiomId) : null;
 
@@ -2758,7 +2749,7 @@ function AxiomsView() {
 }
 
 // ─── CUSTOM PAGES VIEW ───
-function CustomPagesView({ store }: { store: ReturnType<typeof useDashboardStore> }) {
+export function CustomPagesView({ store }: { store: ReturnType<typeof useDashboardStore> }) {
   const [isEditing, setIsEditing] = useState(false);
   const [editingPage, setEditingPage] = useState<CustomPage | null>(null);
   const [title, setTitle] = useState('');
