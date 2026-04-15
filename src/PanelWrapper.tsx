@@ -3,8 +3,8 @@ import { useDashboardStore } from '@/hooks/useDashboardStore';
 import { TTSView } from '@/views/TTSView';
 import { ClipboardView } from '@/views/ClipboardView';
 import { PromptsView } from '@/views/PromptsView';
+import { ResearchView } from '@/views/ResearchView';
 import {
-  ResearchView,
   CalendarView,
   NotesView,
   SettingsView,
@@ -37,7 +37,7 @@ function PanelContent({ viewId, store }: { viewId: ViewType; store: ReturnType<t
     case 'tts': return <TTSView />;
     case 'clipboard': return <ClipboardView />;
     case 'prompts': return <PromptsView />;
-    case 'research': return <ResearchView store={store} />;
+    case 'research': return <ResearchView />;
     case 'calendar': return <CalendarView store={store} />;
     case 'notes': return <NotesView store={store} />;
     case 'ai': return <AIAgentView store={store} />;
