@@ -4,8 +4,8 @@ import { TTSView } from '@/views/TTSView';
 import { ClipboardView } from '@/views/ClipboardView';
 import { PromptsView } from '@/views/PromptsView';
 import { ResearchView } from '@/views/ResearchView';
+import { CalendarView } from '@/views/CalendarView';
 import {
-  CalendarView,
   NotesView,
   SettingsView,
   DashboardView,
@@ -38,7 +38,7 @@ function PanelContent({ viewId, store }: { viewId: ViewType; store: ReturnType<t
     case 'clipboard': return <ClipboardView />;
     case 'prompts': return <PromptsView />;
     case 'research': return <ResearchView />;
-    case 'calendar': return <CalendarView store={store} />;
+    case 'calendar': return <CalendarView />;
     case 'notes': return <NotesView store={store} />;
     case 'ai': return <AIAgentView store={store} />;
     case 'settings': return <SettingsView store={store} />;
