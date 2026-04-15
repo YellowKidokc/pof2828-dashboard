@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { 
-  LayoutDashboard, 
-  Clipboard, 
-  FolderOpen, 
-  Tags, 
-  FileText, 
-  Bot, 
+import {
+  LayoutDashboard,
+  Clipboard,
+  FolderOpen,
+  Tags,
+  FileText,
+  Bot,
   Settings,
   BookOpen,
   Search,
@@ -31,13 +31,17 @@ import {
   Wand2,
   Clock3,
   Menu,
-  Share2
+  Volume2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useDashboardStore } from '@/hooks/useDashboardStore';
 import { useUnifiedSearch } from '@/hooks/useUnifiedSearch';
 import { axioms, getAxiomById } from '@/data/axioms';
 import type { ViewType, SearchResult, Task, Prompt, Bookmark, CustomPage, ChatTurn, AiProvider, AiRole } from '@/types';
+import { TTSView as TTSViewPanel } from '@/components/TTSView';
+import { Shell } from '@/components/Shell';
+import { ClipboardView as ClipboardViewExtracted } from '@/views/ClipboardView';
+import { TTSView as TTSViewExtracted } from '@/views/TTSView';
 
 // ─── VIEW CONFIGURATION ───
 const VIEWS: { id: ViewType; label: string; icon: React.ElementType; color: string }[] = [
@@ -52,7 +56,19 @@ const VIEWS: { id: ViewType; label: string; icon: React.ElementType; color: stri
   { id: 'axioms', label: 'Axioms', icon: BookOpen, color: '#E05C6E' },
   { id: 'custom', label: 'Custom', icon: FileCode, color: '#22d3ee' },
   { id: 'ai', label: 'AI Agent', icon: Bot, color: '#22d3ee' },
+  { id: 'tts', label: 'TTS Engine', icon: Volume2, color: '#f97316' },
   { id: 'settings', label: 'Settings', icon: Settings, color: '#8A8F9E' },
+];
+
+const SHELL_VIEWS = [
+  { id: 'clipboard', label: 'CLIPBOARD', icon: '\u{1F4CB}', color: '#f59e0b' },
+  { id: 'tts', label: 'TTS', icon: '\u{1F50A}', color: '#f97316' },
+  { id: 'prompts', label: 'PROMPTS', icon: '\u2328', color: '#f59e0b' },
+  { id: 'research', label: 'RESEARCH', icon: '\u{1F517}', color: '#4F8EF7' },
+  { id: 'calendar', label: 'CALENDAR', icon: '\u{1F4C5}', color: '#E05C6E' },
+  { id: 'notes', label: 'NOTES', icon: '\u{1F4DD}', color: '#F6821F' },
+  { id: 'ai', label: 'AI HUB', icon: '\u{1F916}', color: '#22d3ee' },
+  { id: 'settings', label: 'SETTINGS', icon: '\u2699', color: '#8A8F9E' },
 ];
 
 // ─── SEARCH RESULT ITEM ───
@@ -412,7 +428,7 @@ function Sidebar({
 }
 
 // ─── DASHBOARD VIEW ───
-function DashboardView({ store }: { store: ReturnType<typeof useDashboardStore> }) {
+export function DashboardView({ store }: { store: ReturnType<typeof useDashboardStore> }) {
   const recentClips = store.clips.slice(0, 5);
   const recentNotes = store.notes.slice(0, 5);
   const todayStr = new Date().toISOString().split('T')[0];
@@ -568,10 +584,33 @@ function DashboardView({ store }: { store: ReturnType<typeof useDashboardStore> 
 }
 
 // ─── CLIPBOARD VIEW ───
-function ClipboardView({ store }: { store: ReturnType<typeof useDashboardStore> }) {
+// Styled to match ClipSync clipboard.html
+export function ClipboardView({ store }: { store: ReturnType<typeof useDashboardStore> }) {
   const [newClip, setNewClip] = useState('');
+  const [search, setSearch] = useState('');
+  const [tab, setTab] = useState<'hotkeys' | 'history' | 'ai' | 'saved'>('hotkeys');
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+  const [activeCat, setActiveCat] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(0);
+  const [pin1Active, setPin1Active] = useState(true);
+  const [pin2Active, setPin2Active] = useState(false);
+
+  const MAX_SLOTS = 50;
+  const SLOTS_PER_PAGE = 20;
+  const totalPages = Math.ceil(MAX_SLOTS / SLOTS_PER_PAGE);
+
   const pinnedClips = store.clips.filter(c => c.pinned);
-  const regularClips = store.clips.filter(c => !c.pinned);
+  const allClips = store.clips.filter(c =>
+    !search || c.content.toLowerCase().includes(search.toLowerCase()) ||
+    (c.title || '').toLowerCase().includes(search.toLowerCase())
+  );
+  const regularClips = allClips.filter(c => !c.pinned);
+
+  const showToast = (msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 600);
+  };
 
   const handleAdd = () => {
     if (newClip.trim()) {
@@ -580,138 +619,290 @@ function ClipboardView({ store }: { store: ReturnType<typeof useDashboardStore> 
     }
   };
 
-  const copyToClipboard = async (content: string) => {
-    await navigator.clipboard.writeText(content);
+  const copyClip = async (clip: typeof store.clips[0]) => {
+    await navigator.clipboard.writeText(clip.content);
+    setCopiedId(clip.id);
+    showToast('COPIED');
+    setTimeout(() => setCopiedId(null), 1200);
   };
 
-  const shareClip = async (clip: { title?: string; content: string }) => {
-    const text = clip.title ? `${clip.title}\n\n${clip.content}` : clip.content;
-    if (navigator.share) {
-      try {
-        await navigator.share({ title: clip.title || 'Clip', text });
-      } catch { /* user cancelled */ }
-    } else {
-      await navigator.clipboard.writeText(text);
+  const getSlotClip = (idx: number) => {
+    const slotClips = store.clips.filter(c => c.slot === idx + 1);
+    return slotClips[0] || null;
+  };
+
+  const saveToSlot = async (idx: number) => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text) {
+        store.addClip(text, undefined, [], idx + 1);
+        showToast(`SAVED TO SLOT ${idx + 1}`);
+      }
+    } catch {
+      showToast('CLIPBOARD EMPTY');
     }
   };
 
-  const ClipCard = ({ clip, isPinned }: { clip: typeof store.clips[0]; isPinned: boolean }) => (
-    <div className={cn(
-      'p-4 rounded-lg border',
-      isPinned ? 'bg-gold/5 border-gold/20' : 'bg-card border-border'
-    )}>
-      {/* Top: Title + Tags side by side */}
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex-1 min-w-0">
-          {clip.title && <div className="font-medium truncate">{clip.title}</div>}
-          <div className="text-sm text-muted-foreground font-mono line-clamp-2 mt-1">{clip.content}</div>
+  const addNewSlot = async () => {
+    for (let i = 0; i < MAX_SLOTS; i++) {
+      if (!getSlotClip(i)) {
+        setCurrentPage(Math.floor(i / SLOTS_PER_PAGE));
+        await saveToSlot(i);
+        return;
+      }
+    }
+    showToast('ALL SLOTS FULL');
+  };
+
+  const timeAgo = (date: string) => {
+    const diff = Date.now() - new Date(date).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return `${mins}m`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h`;
+    return `${Math.floor(hrs / 24)}d`;
+  };
+
+  const filledSlotCount = Array.from({ length: MAX_SLOTS }, (_, i) => getSlotClip(i)).filter(Boolean).length;
+
+  // CSS matching ClipSync clipboard.html
+  const css = {
+    body: { fontFamily: "'IBM Plex Mono', monospace", background: '#0a0a0f', color: '#c8ccd4' },
+    searchBar: { display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 10px', borderBottom: '1px solid #1e1e2e', background: '#0d0d14', flexShrink: 0 },
+    searchInput: { flex: 1, background: '#12121c', border: '1px solid #1e1e2e', borderRadius: '5px', padding: '8px 10px 8px 30px', color: '#c8ccd4', fontSize: '13px', fontFamily: 'inherit', outline: 'none' } as React.CSSProperties,
+    brandBadge: { fontSize: '12px', fontWeight: 700, letterSpacing: '2px', color: '#f59e0b', whiteSpace: 'nowrap' as const, display: 'flex', alignItems: 'center', gap: '6px' },
+    dot: { width: '7px', height: '7px', borderRadius: '50%', background: '#10b981', boxShadow: '0 0 6px rgba(16,185,129,0.5)' },
+    tabBar: { display: 'flex', background: '#0a0a0f', borderBottom: '1px solid #1e1e2e', flexShrink: 0 },
+    tab: (active: boolean) => ({ flex: 1, padding: '8px 0', textAlign: 'center' as const, fontSize: '10px', letterSpacing: '1.5px', fontWeight: 600, color: active ? '#f59e0b' : '#3a3a4a', cursor: 'pointer', borderBottom: `2px solid ${active ? '#f59e0b' : 'transparent'}`, transition: 'all .1s', background: 'transparent', fontFamily: 'inherit' }),
+    slotCard: (filled: boolean) => ({ background: '#111118', border: `1px solid ${filled ? '#1e3a5f' : '#1e1e2e'}`, borderRadius: '8px', padding: '9px 10px', display: 'flex', flexDirection: 'column' as const, gap: '6px', minHeight: '82px', transition: 'border-color .1s' }),
+    slotLabel: { fontSize: '11px', fontWeight: 700, color: '#f59e0b', letterSpacing: '1px' },
+    slotStatus: { fontSize: '9px', fontWeight: 600, letterSpacing: '1px', color: '#10b981' },
+    slotTitle: { fontSize: '12px', fontWeight: 600, color: '#e0e0e0', whiteSpace: 'nowrap' as const, overflow: 'hidden', textOverflow: 'ellipsis' },
+    slotPreview: { fontSize: '11px', color: '#6b7280', lineHeight: '1.35', whiteSpace: 'nowrap' as const, overflow: 'hidden', textOverflow: 'ellipsis' },
+    slotBtn: { padding: '4px 0', flex: 1, border: '1px solid #1e1e2e', borderRadius: '4px', background: 'transparent', color: '#555', fontSize: '10px', fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer', transition: 'all .1s', letterSpacing: '.5px' },
+    copyBtn: { background: 'rgba(96,208,255,.1)', borderColor: 'rgba(96,208,255,.3)', color: '#60d0ff' },
+    saveBtn: { color: '#888' },
+    clipItem: (pinned: boolean) => ({ padding: '10px 10px 9px', marginBottom: '6px', background: '#111118', border: `1px solid ${pinned ? 'rgba(251,191,36,.32)' : '#1e1e2e'}`, borderRadius: '8px', cursor: 'pointer', transition: 'all .08s', position: 'relative' as const, boxShadow: pinned ? 'inset 0 0 0 1px rgba(251,191,36,.12)' : 'none' }),
+    clipTitle: { fontSize: '12px', fontWeight: 600, color: '#eceef6', whiteSpace: 'nowrap' as const, overflow: 'hidden', textOverflow: 'ellipsis', paddingRight: '62px' },
+    clipDesc: { fontSize: '10px', lineHeight: '1.4', color: '#8f96ab', whiteSpace: 'nowrap' as const, overflow: 'hidden', textOverflow: 'ellipsis', marginTop: '4px' },
+    clipMeta: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', marginTop: '7px' },
+    clipTag: (pinned: boolean) => ({ padding: '2px 6px', border: `1px solid ${pinned ? 'rgba(251,191,36,.28)' : '#2a3145'}`, borderRadius: '999px', background: pinned ? 'rgba(251,191,36,.1)' : '#171b27', color: pinned ? '#fbbf24' : '#aeb7cb', fontSize: '8px', fontWeight: 600, letterSpacing: '.3px', maxWidth: '110px', whiteSpace: 'nowrap' as const, overflow: 'hidden', textOverflow: 'ellipsis' }),
+    clipTime: { fontSize: '9px', color: '#4f586f', whiteSpace: 'nowrap' as const },
+    clipActions: { position: 'absolute' as const, top: '8px', right: '8px', display: 'flex', gap: '4px' },
+    clipActionBtn: { background: '#12121c', border: '1px solid #1e1e2e', borderRadius: '999px', color: '#70788f', padding: '3px 7px', fontSize: '9px', fontFamily: 'inherit', cursor: 'pointer', transition: 'all .1s' },
+    emptyState: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column' as const, color: '#2a2a3a', gap: '6px', padding: '20px' },
+    dock: { borderTop: '1px solid #1e1e2e', background: '#0d0d14', flexShrink: 0 },
+    dockIcons: { display: 'flex', alignItems: 'center', gap: '4px', padding: '6px 10px', borderBottom: '1px solid #151520' },
+    dockIcon: (active: boolean) => ({ width: '34px', height: '34px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: active ? 'rgba(245,158,11,.08)' : '#111118', border: `1px solid ${active ? 'rgba(245,158,11,.4)' : '#1e1e2e'}`, borderRadius: '5px', color: active ? '#f59e0b' : '#555', fontSize: '16px', cursor: 'pointer', transition: 'all .1s' }),
+    dockNew: { padding: '5px 14px', background: 'rgba(245,158,11,.08)', border: '1px solid rgba(245,158,11,.25)', borderRadius: '5px', color: '#f59e0b', fontSize: '11px', fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer', letterSpacing: '1px', transition: 'all .1s' },
+    dockCats: { display: 'flex', gap: '4px', padding: '6px 10px', borderBottom: '1px solid #151520' },
+    dockCat: (active: boolean) => ({ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', padding: '7px 4px', background: active ? 'rgba(245,158,11,.05)' : '#0a0a0f', border: `1px solid ${active ? 'rgba(245,158,11,.3)' : '#1e1e2e'}`, borderRadius: '4px', color: active ? '#f59e0b' : '#3a3a4a', fontSize: '11px', fontWeight: 700, letterSpacing: '1px', cursor: 'pointer', transition: 'all .1s', fontFamily: 'inherit' }),
+    dockStatus: { display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 10px', fontSize: '11px', color: '#2a2a3a' },
+    dockStatusBtn: { background: 'transparent', border: '1px solid #1e1e2e', borderRadius: '3px', color: '#555', padding: '3px 10px', fontSize: '14px', cursor: 'pointer', fontFamily: 'inherit', transition: 'all .1s' },
+    statusBadge: { padding: '3px 12px', background: 'rgba(16,185,129,.1)', border: '1px solid rgba(16,185,129,.25)', borderRadius: '4px', color: '#10b981', fontSize: '10px', fontWeight: 700, letterSpacing: '1px' },
+    statusCount: { marginLeft: 'auto', fontSize: '12px', color: '#555' },
+    toastStyle: { position: 'fixed' as const, top: '50%', left: '50%', transform: 'translate(-50%,-50%)', background: '#10b981', color: '#000', padding: '10px 24px', borderRadius: '6px', fontSize: '14px', fontWeight: 700, letterSpacing: '2px', zIndex: 9999, pointerEvents: 'none' as const },
+  };
+
+  return (
+    <div className="h-full flex flex-col overflow-hidden select-none" style={css.body}>
+      {/* SEARCH BAR — matches ClipSync .search-bar */}
+      <div style={css.searchBar}>
+        <div style={{ position: 'relative', flex: 1 }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"
+            style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#3a3a4a', pointerEvents: 'none' }}>
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <input value={search} onChange={e => setSearch(e.target.value)}
+            placeholder="Search clips..."
+            style={css.searchInput} />
         </div>
-        {clip.tags.length > 0 && (
-          <div className="flex flex-wrap gap-1 shrink-0">
-            {clip.tags.map(tag => (
-              <span key={tag} className="text-xs px-2 py-0.5 bg-muted rounded whitespace-nowrap">{tag}</span>
-            ))}
+        <div style={css.brandBadge}>
+          <span style={css.dot} className="animate-pulse" />
+          {' '}POF 2828
+        </div>
+      </div>
+
+      {/* TABS — matches ClipSync .tab-bar */}
+      <div style={css.tabBar}>
+        {([['hotkeys', 'HOTKEYS'], ['history', 'HISTORY'], ['ai', 'AI'], ['saved', '+']] as const).map(([key, label]) => (
+          <button key={key} onClick={() => setTab(key as typeof tab)}
+            style={{
+              ...css.tab(tab === key),
+              ...(key === 'saved' ? { maxWidth: '36px' } : {}),
+            }}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* PANELS */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+
+        {/* TAB 1: HOTKEYS (slot cards) */}
+        {tab === 'hotkeys' && (
+          <div style={{ flex: 1, overflowY: 'auto', padding: '6px', display: 'grid', gridTemplateColumns: '1fr', gap: '6px', alignContent: 'start' }}>
+            {Array.from({ length: SLOTS_PER_PAGE }, (_, pageIdx) => {
+              const i = currentPage * SLOTS_PER_PAGE + pageIdx;
+              if (i >= MAX_SLOTS) return null;
+              const clip = getSlotClip(i);
+              const hasFill = !!clip;
+              if (search && hasFill && !clip.content.toLowerCase().includes(search.toLowerCase())) return null;
+              if (search && !hasFill) return null;
+              const title = hasFill ? clip.content.split('\n')[0].substring(0, 30) : '';
+              const preview = hasFill ? clip.content.replace(/\n/g, ' ').substring(0, 50) : '';
+
+              return (
+                <div key={i} style={css.slotCard(hasFill)}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={css.slotLabel}>SLOT {i + 1}</span>
+                    {hasFill && <span style={css.slotStatus}>READY</span>}
+                  </div>
+                  {hasFill && <div style={css.slotTitle}>{title}</div>}
+                  <div style={css.slotPreview}>{hasFill ? preview : ''}</div>
+                  <div style={{ display: 'flex', gap: '4px', marginTop: 'auto' }}>
+                    {hasFill ? (
+                      <>
+                        <button onClick={() => copyClip(clip)} style={{ ...css.slotBtn, ...css.copyBtn }}>
+                          {copiedId === clip.id ? 'COPIED' : 'COPY'}
+                        </button>
+                        <button style={css.slotBtn}>—</button>
+                        <button onClick={() => store.deleteClip(clip.id)} style={css.slotBtn}>×</button>
+                      </>
+                    ) : (
+                      <button onClick={() => saveToSlot(i)} style={{ ...css.slotBtn, ...css.saveBtn }}>+ SAVE</button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* TAB 2: HISTORY */}
+        {tab === 'history' && (
+          <div style={{ flex: 1, overflowY: 'auto', padding: '6px' }}>
+            {regularClips.length === 0 ? (
+              <div style={css.emptyState}>
+                <div style={{ fontSize: '14px', letterSpacing: '2px' }}>NO HISTORY</div>
+                <div style={{ fontSize: '12px', color: '#1e1e2e' }}>clips appear as you copy</div>
+              </div>
+            ) : (
+              regularClips.map(clip => (
+                <div key={clip.id} style={css.clipItem(false)} onClick={() => copyClip(clip)}>
+                  <div style={css.clipTitle}>
+                    {clip.title || clip.content.split('\n')[0].slice(0, 60) || 'Untitled clip'}
+                  </div>
+                  <div style={css.clipDesc}>
+                    {clip.content.replace(/\s+/g, ' ').trim().slice(0, 120) || 'No description'}
+                  </div>
+                  <div style={css.clipMeta}>
+                    <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', minWidth: 0 }}>
+                      {clip.pinned && <span style={css.clipTag(true)}>Pinned</span>}
+                      {clip.tags.slice(0, 3).map(tag => (
+                        <span key={tag} style={css.clipTag(false)}>{tag}</span>
+                      ))}
+                    </div>
+                    <span style={css.clipTime}>{timeAgo(clip.createdAt)}</span>
+                  </div>
+                  <div style={css.clipActions}>
+                    <button onClick={e => { e.stopPropagation(); store.togglePinClip(clip.id); showToast('SAVED'); }}
+                      style={css.clipActionBtn}>SAVE</button>
+                    <button onClick={e => { e.stopPropagation(); store.deleteClip(clip.id); }}
+                      style={{ ...css.clipActionBtn, color: '#ef4444' }}>DEL</button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+
+        {/* TAB 3: AI */}
+        {tab === 'ai' && (
+          <div style={{ flex: 1, overflowY: 'auto', padding: '6px' }}>
+            <div style={css.emptyState}>
+              <div style={{ fontSize: '14px', letterSpacing: '2px' }}>AI QUICK ACCESS</div>
+              <div style={{ fontSize: '12px', color: '#1e1e2e' }}>use Ctrl+Alt+A for full AI chat</div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 4: SAVED (+) */}
+        {tab === 'saved' && (
+          <div style={{ flex: 1, overflowY: 'auto', padding: '6px' }}>
+            {pinnedClips.length === 0 ? (
+              <div style={css.emptyState}>
+                <div style={{ fontSize: '14px', letterSpacing: '2px' }}>NO SAVED CLIPS</div>
+                <div style={{ fontSize: '12px', color: '#1e1e2e' }}>hit SAVE from History to keep items permanently</div>
+              </div>
+            ) : (
+              pinnedClips.map(clip => (
+                <div key={clip.id} style={css.clipItem(true)} onClick={() => copyClip(clip)}>
+                  <div style={css.clipTitle}>
+                    {clip.title || clip.content.split('\n')[0].slice(0, 60) || 'Saved clip'}
+                  </div>
+                  <div style={css.clipDesc}>
+                    {clip.content.replace(/\s+/g, ' ').trim().slice(0, 120) || 'No description'}
+                  </div>
+                  <div style={css.clipMeta}>
+                    <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', minWidth: 0 }}>
+                      {clip.tags.slice(0, 3).map(tag => (
+                        <span key={tag} style={css.clipTag(true)}>{tag}</span>
+                      ))}
+                    </div>
+                    <span style={css.clipTime}>{timeAgo(clip.createdAt)}</span>
+                  </div>
+                  <div style={css.clipActions}>
+                    <button onClick={e => { e.stopPropagation(); store.togglePinClip(clip.id); }}
+                      style={{ ...css.clipActionBtn, color: '#ef4444' }}>REMOVE</button>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         )}
       </div>
 
-      {/* Bottom: Action buttons — big touch targets */}
-      <div className="flex items-center gap-1 mt-3 pt-3 border-t border-border/50">
-        <button
-          onClick={() => store.togglePinClip(clip.id)}
-          className={cn(
-            'flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
-            isPinned ? 'text-gold bg-gold/10 hover:bg-gold/20' : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-          )}
-          title={isPinned ? 'Unpin' : 'Pin'}
-        >
-          <Pin className={cn('w-5 h-5', isPinned && 'fill-current')} />
-        </button>
-        <button
-          onClick={() => copyToClipboard(clip.content)}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-          title="Copy"
-        >
-          <Copy className="w-5 h-5" />
-        </button>
-        <button
-          onClick={() => shareClip(clip)}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-          title="Share"
-        >
-          <Share2 className="w-5 h-5" />
-        </button>
-        <div className="flex-1" />
-        <button
-          onClick={() => store.deleteClip(clip.id)}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium text-red-500/70 hover:bg-red-500/10 hover:text-red-500 transition-colors"
-          title="Delete"
-        >
-          <Trash2 className="w-5 h-5" />
-        </button>
-      </div>
-    </div>
-  );
-
-  return (
-    <div className="p-4 md:p-6 space-y-6 overflow-y-auto h-full">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Clipboard</h1>
-          <p className="text-muted-foreground text-sm">Cross-session clipboard with pins and tags</p>
+      {/* SHARED BOTTOM DOCK — matches ClipSync .dock */}
+      <div style={css.dock}>
+        {/* Row 1: Pin + action icons */}
+        <div style={css.dockIcons}>
+          <div style={css.dockIcon(pin1Active)} onClick={() => { setPin1Active(!pin1Active); showToast(pin1Active ? 'UNPINNED' : 'PINNED'); }}>📌</div>
+          <div style={css.dockIcon(pin2Active)} onClick={() => { setPin2Active(!pin2Active); showToast(pin2Active ? 'PIN 2 OFF' : 'PIN 2 ON'); }}>📌</div>
+          <div style={css.dockIcon(false)} title="Pin any window">✏️</div>
+          <div style={css.dockIcon(false)} title="Slot 1">1</div>
+          <div style={css.dockIcon(false)} title="Slot 2">2</div>
+          <div style={{ flex: 1 }} />
+          <button style={css.dockNew} onClick={addNewSlot}>+ New</button>
         </div>
-      </div>
-
-      {/* Add New */}
-      <div className="flex gap-2">
-        <input
-          type="text"
-          value={newClip}
-          onChange={(e) => setNewClip(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
-          placeholder="Add new clip..."
-          className="flex-1 px-4 py-2 bg-card border border-border rounded-lg outline-none focus:border-gold"
-        />
-        <button
-          onClick={handleAdd}
-          className="px-4 py-2 bg-gold text-black rounded-lg font-medium hover:bg-gold/90"
-        >
-          Add
-        </button>
-      </div>
-
-      {/* Pinned Section */}
-      {pinnedClips.length > 0 && (
-        <div>
-          <h3 className="text-sm font-medium text-gold mb-3 flex items-center gap-2">
-            <Pin className="w-4 h-4" /> Pinned
-          </h3>
-          <div className="grid gap-3">
-            {pinnedClips.map(clip => (
-              <ClipCard key={clip.id} clip={clip} isPinned />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Regular Clips */}
-      <div>
-        <h3 className="text-sm font-medium text-muted-foreground mb-3">History</h3>
-        <div className="grid gap-3">
-          {regularClips.map(clip => (
-            <ClipCard key={clip.id} clip={clip} isPinned={false} />
+        {/* Row 2: Categories */}
+        <div style={css.dockCats}>
+          {([['docs', '📄', 'Docs'], ['video', '🎬', 'Video'], ['music', '🎵', 'Music'], ['pics', '🖼️', 'Pics']] as const).map(([key, icon, label]) => (
+            <button key={key} onClick={() => setActiveCat(activeCat === key ? null : key)}
+              style={css.dockCat(activeCat === key)}>
+              <span style={{ fontSize: '14px' }}>{icon}</span> {label}
+            </button>
           ))}
-          {regularClips.length === 0 && (
-            <p className="text-muted-foreground text-center py-8">No clips yet</p>
-          )}
+        </div>
+        {/* Row 3: Status */}
+        <div style={css.dockStatus}>
+          <button style={css.dockStatusBtn} onClick={() => setCurrentPage((currentPage - 1 + totalPages) % totalPages)}>◀</button>
+          <button style={css.dockStatusBtn}>▶</button>
+          <button style={css.dockStatusBtn} onClick={() => setCurrentPage((currentPage + 1) % totalPages)}>▲</button>
+          <span style={css.statusBadge}>Updated</span>
+          <span style={css.statusCount}>{currentPage + 1}/{totalPages} · {filledSlotCount} slots</span>
         </div>
       </div>
+
+      {/* TOAST — matches ClipSync .toast */}
+      {toast && <div style={css.toastStyle}>{toast}</div>}
     </div>
   );
 }
 
 // ─── PROMPTS VIEW ───
-function PromptsView({ store }: { store: ReturnType<typeof useDashboardStore> }) {
+export function PromptsView({ store }: { store: ReturnType<typeof useDashboardStore> }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedPrompt, setSelectedPrompt] = useState<Prompt | null>(null);
@@ -982,7 +1173,7 @@ function PromptsView({ store }: { store: ReturnType<typeof useDashboardStore> })
 }
 
 // ─── RESEARCH LINKS VIEW ───
-function ResearchView({ store }: { store: ReturnType<typeof useDashboardStore> }) {
+export function ResearchView({ store }: { store: ReturnType<typeof useDashboardStore> }) {
   const SEARCH_HISTORY_KEY = 'pof2828_research_search_history';
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -1318,7 +1509,7 @@ function ResearchView({ store }: { store: ReturnType<typeof useDashboardStore> }
 }
 
 // ─── CALENDAR VIEW ───
-function CalendarView({ store }: { store: ReturnType<typeof useDashboardStore> }) {
+export function CalendarView({ store }: { store: ReturnType<typeof useDashboardStore> }) {
   const [viewMode, setViewMode] = useState<'agenda' | 'month'>('agenda');
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -1765,7 +1956,7 @@ function CalendarView({ store }: { store: ReturnType<typeof useDashboardStore> }
 }
 
 // ─── NOTES VIEW ───
-function NotesView({ store }: { store: ReturnType<typeof useDashboardStore> }) {
+export function NotesView({ store }: { store: ReturnType<typeof useDashboardStore> }) {
   const [isEditing, setIsEditing] = useState(false);
   const [editingNote, setEditingNote] = useState<string | null>(null);
   const [title, setTitle] = useState('');
@@ -2019,7 +2210,7 @@ function FilesView({ store }: { store: ReturnType<typeof useDashboardStore> }) {
 }
 
 // ─── AI AGENT VIEW ───
-function AIAgentView({ store }: { store: ReturnType<typeof useDashboardStore> }) {
+export function AIAgentView({ store }: { store: ReturnType<typeof useDashboardStore> }) {
   const AI_HISTORY_KEY = 'pof2828_ai_chat_history';
   const AI_SETTINGS_KEY = 'pof2828_ai_chat_settings';
   const [messages, setMessages] = useState<ChatTurn[]>([]);
@@ -2774,7 +2965,7 @@ function CustomPagesView({ store }: { store: ReturnType<typeof useDashboardStore
 }
 
 // ─── SETTINGS VIEW ───
-function SettingsView({ store }: { store: ReturnType<typeof useDashboardStore> }) {
+export function SettingsView({ store }: { store: ReturnType<typeof useDashboardStore> }) {
   const [importText, setImportText] = useState('');
   const [showImport, setShowImport] = useState(false);
 
@@ -2902,159 +3093,27 @@ function SettingsView({ store }: { store: ReturnType<typeof useDashboardStore> }
 // ─── MAIN APP ───
 function App() {
   const store = useDashboardStore();
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-
-  // Keyboard shortcut for search
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-        e.preventDefault();
-        setSearchOpen(true);
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
-
-  const handleNavigate = (view: ViewType, _id?: string) => {
-    store.navigateTo(view);
-  };
-
-  // Render current view
-  const renderView = () => {
-    switch (store.currentView) {
-      case 'dashboard':
-        return <DashboardView store={store} />;
-      case 'clipboard':
-        return <ClipboardView store={store} />;
-      case 'prompts':
-        return <PromptsView store={store} />;
-      case 'research':
-        return <ResearchView store={store} />;
-      case 'calendar':
-        return <CalendarView store={store} />;
-      case 'notes':
-        return <NotesView store={store} />;
-      case 'tags':
-        return <TagsView store={store} />;
-      case 'files':
-        return <FilesView store={store} />;
-      case 'ai':
-        return <AIAgentView store={store} />;
-      case 'axioms':
-        return <AxiomsView />;
-      case 'custom':
-        return <CustomPagesView store={store} />;
-      case 'settings':
-        return <SettingsView store={store} />;
-      default:
-        return <DashboardView store={store} />;
-    }
-  };
+  const [activeView, setActiveView] = useState('clipboard');
 
   if (!store.isLoaded) {
     return (
-      <div className="h-screen flex items-center justify-center bg-background">
-        <div className="text-center">
-          <div className="w-8 h-8 border-2 border-gold border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-muted-foreground">Loading...</p>
-        </div>
+      <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0a0a0f', color: '#f59e0b', fontFamily: 'var(--cs-font-mono)' }}>
+        Loading...
       </div>
     );
   }
 
-  // Bottom nav items — the most-used views for quick thumb access
-  const bottomNavItems = VIEWS.filter(v =>
-    ['dashboard', 'clipboard', 'notes', 'ai', 'prompts'].includes(v.id)
-  );
-
   return (
-    <div className="h-screen flex flex-col md:flex-row bg-background text-foreground overflow-hidden">
-      {/* Mobile top bar with hamburger */}
-      <div className="md:hidden flex items-center h-12 px-3 bg-card border-b border-border shrink-0">
-        <button
-          onClick={() => setSidebarOpen(true)}
-          className="p-2 -ml-1 rounded-lg hover:bg-muted"
-          aria-label="Open menu"
-        >
-          <Menu className="w-5 h-5" />
-        </button>
-        <span className="ml-2 font-semibold text-sm">
-          {VIEWS.find(v => v.id === store.currentView)?.label || 'POF 2828'}
-        </span>
-        <button
-          onClick={() => setSearchOpen(true)}
-          className="ml-auto p-2 rounded-lg hover:bg-muted"
-          aria-label="Search"
-        >
-          <Search className="w-4 h-4 text-muted-foreground" />
-        </button>
-      </div>
-
-      {/* Mobile overlay */}
-      {sidebarOpen && (
-        <div
-          className="md:hidden fixed inset-0 bg-black/50 z-40"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
-
-      {/* Sidebar — hidden on mobile unless open */}
-      <div className={cn(
-        'fixed md:relative z-50 md:z-auto h-full transition-transform duration-200',
-        sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
-      )}>
-        <Sidebar
-          currentView={store.currentView}
-          onNavigate={(view) => { store.navigateTo(view); setSidebarOpen(false); }}
-          onOpenSearch={() => { setSearchOpen(true); setSidebarOpen(false); }}
-          stats={store.stats}
-          customPages={store.customPages}
-        />
-      </div>
-
-      {/* Main Content — account for bottom nav on mobile */}
-      <main className="flex-1 overflow-hidden pb-16 md:pb-0">
-        {renderView()}
-      </main>
-
-      {/* Mobile Bottom Nav Bar */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-card border-t border-border flex items-stretch justify-around h-16">
-        {bottomNavItems.map((view) => {
-          const Icon = view.icon;
-          const isActive = store.currentView === view.id;
-          return (
-            <button
-              key={view.id}
-              onClick={() => store.navigateTo(view.id)}
-              className={cn(
-                'flex-1 flex flex-col items-center justify-center gap-1 transition-colors',
-                isActive ? 'text-gold' : 'text-muted-foreground'
-              )}
-            >
-              <Icon className="w-6 h-6" />
-              <span className="text-[10px] font-medium">{view.label}</span>
-            </button>
-          );
-        })}
-        <button
-          onClick={() => setSidebarOpen(true)}
-          className="flex-1 flex flex-col items-center justify-center gap-1 text-muted-foreground"
-        >
-          <Menu className="w-6 h-6" />
-          <span className="text-[10px] font-medium">More</span>
-        </button>
-      </nav>
-
-      {/* Unified Search Modal */}
-      <UnifiedSearch
-        isOpen={searchOpen}
-        onClose={() => setSearchOpen(false)}
-        onNavigate={handleNavigate}
-        store={store}
-      />
-    </div>
+    <Shell views={SHELL_VIEWS} activeView={activeView} onViewChange={setActiveView}>
+      {activeView === 'clipboard' && <ClipboardViewExtracted />}
+      {activeView === 'tts' && <TTSViewExtracted />}
+      {activeView === 'prompts' && <PromptsView store={store} />}
+      {activeView === 'research' && <ResearchView store={store} />}
+      {activeView === 'calendar' && <CalendarView store={store} />}
+      {activeView === 'notes' && <NotesView store={store} />}
+      {activeView === 'ai' && <AIAgentView store={store} />}
+      {activeView === 'settings' && <SettingsView store={store} />}
+    </Shell>
   );
 }
 
