@@ -44,6 +44,7 @@ import { TTSView as TTSViewExtracted } from '@/views/TTSView';
 import { PromptsView as PromptsViewExtracted } from '@/views/PromptsView';
 import { ResearchView as ResearchViewExtracted } from '@/views/ResearchView';
 import { CalendarView as CalendarViewExtracted } from '@/views/CalendarView';
+import { NotesView as NotesViewExtracted } from '@/views/NotesView';
 
 // ─── VIEW CONFIGURATION ───
 const VIEWS: { id: ViewType; label: string; icon: React.ElementType; color: string }[] = [
@@ -3104,7 +3105,7 @@ function App() {
       {activeView === 'prompts' && <PromptsViewExtracted />}
       {activeView === 'research' && <ResearchViewExtracted />}
       {activeView === 'calendar' && <CalendarViewExtracted />}
-      {activeView === 'notes' && <NotesView store={store} />}
+      {activeView === 'notes' && <NotesViewExtracted />}
       {activeView === 'ai' && <AIAgentView store={store} />}
       {activeView === 'settings' && <SettingsView store={store} />}
     </Shell>
