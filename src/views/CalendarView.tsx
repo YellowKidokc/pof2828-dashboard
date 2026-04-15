@@ -129,19 +129,15 @@ export function CalendarView() {
   };
 
   const handleDeleteTask = async (id: string) => {
-    if (confirm('Delete this task?')) {
-      await deleteTask(id);
-      showToast('Task deleted');
-    }
+    await deleteTask(id);
+    showToast('Task deleted');
   };
 
   const handleModalDelete = async () => {
     if (!editingTask) return;
-    if (confirm('Delete this task?')) {
-      await deleteTask(editingTask.id);
-      setIsAddModalOpen(false);
-      showToast('Task deleted');
-    }
+    await deleteTask(editingTask.id);
+    setIsAddModalOpen(false);
+    showToast('Task deleted');
   };
 
   // Project color helper

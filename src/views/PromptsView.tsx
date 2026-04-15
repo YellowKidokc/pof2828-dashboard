@@ -11,8 +11,12 @@ const CATEGORIES = [
   { key: 'custom',   label: 'CUSTOM',   color: '#ef4444' },
 ];
 
+function escapeHtml(str: string): string {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
 function highlightTemplate(tpl: string): string {
-  return tpl
+  return escapeHtml(tpl)
     .replace(
       /\{[^}]+\}/g,
       match =>

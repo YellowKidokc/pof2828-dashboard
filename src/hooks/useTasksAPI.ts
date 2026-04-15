@@ -57,12 +57,15 @@ export function useTasksAPI() {
   }, []);
 
   const toggleTask = useCallback(async (id: string) => {
+    let newDone: boolean | undefined;
     setTasks(prev => prev.map(t => {
       if (t.id !== id) return t;
-      const updated = { ...t, done: !t.done, updated_at: new Date().toISOString() };
-      apiPut(`/tasks/${id}`, { done: updated.done }).catch(() => {});
-      return updated;
+      newDone = !t.done;
+      return { ...t, done: newDone, updated_at: new Date().toISOString() };
     }));
+    if (newDone !== undefined) {
+      try { await apiPut(`/tasks/${id}`, { done: newDone }); } catch { /* offline */ }
+    }
   }, []);
 
   const deleteTask = useCallback(async (id: string) => {
