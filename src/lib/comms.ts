@@ -1,11 +1,11 @@
 // ══════��════════════════════════════════════════════════════════════
 // COMMS API — Theophysics AI Communications Hub
-// Targets: ai-comms-hub.davidokc28.workers.dev (Brief 03 fix pending)
+// Targets: comms.dlowehomelab.com
 // Schema: messages(id, channel, sender, content, timestamp, read_by)
 //         channels(id, name, display_name, created_at, last_seen, orientation_complete, role)
 // ═══════════════��═══════════════════════════════════════════════════
 
-const COMMS_URL = 'https://ai-comms-hub.davidokc28.workers.dev';
+const COMMS_URL = 'https://comms.dlowehomelab.com';
 const STORAGE_KEY_URL = 'pof_comms_url';
 const STORAGE_KEY_TOKEN = 'pof_comms_token';
 const STORAGE_KEY_CHANNEL = 'pof_comms_channel';

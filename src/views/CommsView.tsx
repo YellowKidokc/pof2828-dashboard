@@ -310,7 +310,7 @@ export function CommsView() {
             style={css.input}
             value={configUrl}
             onChange={e => setConfigUrl(e.target.value)}
-            placeholder="https://ai-comms-hub.davidokc28.workers.dev"
+            placeholder="https://comms.dlowehomelab.com"
           />
           <label style={{ fontSize: '10px', color: '#6a6a80', display: 'block', marginBottom: '4px' }}>Auth Token</label>
           <input

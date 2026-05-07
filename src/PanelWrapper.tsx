@@ -1,7 +1,6 @@
 import { useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { useDashboardStore } from '@/hooks/useDashboardStore';
-import { TTSView } from '@/views/TTSView';
 import { ClipboardView } from '@/views/ClipboardView';
 import { PromptsView } from '@/views/PromptsView';
 import { ResearchView } from '@/views/ResearchView';
@@ -16,7 +15,6 @@ import type { ViewType } from '@/types';
 
 const STANDALONE_MANIFESTS: Partial<Record<ViewType, string>> = {
   clipboard: './manifests/clipboard.webmanifest',
-  tts: './manifests/tts.webmanifest',
   prompts: './manifests/prompts.webmanifest',
   research: './manifests/research.webmanifest',
   links: './manifests/links.webmanifest',
@@ -59,7 +57,6 @@ export function PanelWrapper() {
 
 function PanelContent({ viewId, store }: { viewId: ViewType; store: ReturnType<typeof useDashboardStore> }) {
   switch (viewId) {
-    case 'tts': return <TTSView />;
     case 'clipboard': return <ClipboardView />;
     case 'prompts': return <PromptsView />;
     case 'research': return <ResearchView />;

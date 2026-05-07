@@ -3,7 +3,6 @@ import { useDashboardStore } from '@/hooks/useDashboardStore';
 import { startSyncLoop } from '@/lib/sync';
 import { Shell } from '@/components/Shell';
 import { ClipboardView } from '@/views/ClipboardView';
-import { TTSView } from '@/views/TTSView';
 import { PromptsView } from '@/views/PromptsView';
 import { ResearchView } from '@/views/ResearchView';
 import { CalendarView } from '@/views/CalendarView';
@@ -17,7 +16,6 @@ import { CommsView } from '@/views/CommsView';
 
 const SHELL_VIEWS = [
   { id: 'clipboard', label: 'CLIPBOARD', icon: '\u{1F4CB}', color: '#f59e0b' },
-  { id: 'tts', label: 'TTS', icon: '\u{1F50A}', color: '#f97316' },
   { id: 'prompts', label: 'PROMPTS', icon: '\u{2328}', color: '#f59e0b' },
   { id: 'research', label: 'RESEARCH', icon: '\u{1F517}', color: '#4F8EF7' },
   { id: 'calendar', label: 'CALENDAR', icon: '\u{1F4C5}', color: '#E05C6E' },
@@ -47,7 +45,6 @@ function App() {
   return (
     <Shell views={SHELL_VIEWS} activeView={activeView} onViewChange={setActiveView}>
       {activeView === 'clipboard' && <ClipboardView />}
-      {activeView === 'tts' && <TTSView />}
       {activeView === 'prompts' && <PromptsView />}
       {activeView === 'research' && <ResearchView />}
       {activeView === 'calendar' && <CalendarView />}

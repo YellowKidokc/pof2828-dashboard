@@ -2,7 +2,6 @@ import { useState } from 'react';
 
 const APPS: { id: string; label: string; color: string; icon: string }[] = [
   { id: 'clipboard', label: 'Clipboard', color: '#f59e0b', icon: '\u{1F4CB}' },
-  { id: 'tts', label: 'TTS', color: '#f97316', icon: '\u{1F50A}' },
   { id: 'prompts', label: 'Prompts', color: '#f59e0b', icon: '⌨' },
   { id: 'research', label: 'Research', color: '#4F8EF7', icon: '\u{1F517}' },
   { id: 'links', label: 'Links', color: '#22d3ee', icon: '\u{1F517}' },

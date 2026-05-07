@@ -248,7 +248,6 @@ export type ViewType =
   | 'research'
   | 'calendar'
   | 'comms'
-  | 'tts'
   | 'custom'
   | 'deepcrawl'
   | 'search'
